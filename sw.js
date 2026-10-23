@@ -1,5 +1,5 @@
 // Cache simple para que la app funcione sin conexión una vez instalada.
-const CACHE = 'exif-frame-v6';
+const CACHE = 'exif-frame-v7';
 const ASSETS = [
   './', 'index.html', 'styles.css', 'decoders.js', 'logos.js', 'render.js', 'app.js', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'manifest.webmanifest',
   'https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js',

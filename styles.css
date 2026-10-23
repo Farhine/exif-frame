@@ -31,6 +31,19 @@ body {
 .topbar h1 { font-size: 18px; margin: 0; letter-spacing: .02em; }
 .topbar-actions { display: flex; gap: 8px; }
 
+.install-help {
+  width: min(420px, calc(100% - 32px));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 20px;
+}
+.install-help::backdrop { background: rgba(0,0,0,.6); }
+.install-help h2 { margin: 0 0 12px; font-size: 18px; }
+.install-help ol { margin: 0 0 20px; padding-left: 20px; line-height: 1.6; color: var(--muted); }
+.install-help strong { color: var(--text); }
+
 .layout {
   flex: 1;
   display: grid;

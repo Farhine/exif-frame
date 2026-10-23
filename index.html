@@ -19,7 +19,7 @@
   <header class="topbar">
     <h1>EXIF Frame</h1>
     <div class="topbar-actions">
-      <button class="btn ghost" id="install" hidden>Instalar</button>
+      <button class="btn ghost" id="install">Instalar</button>
       <label class="btn ghost" for="file">Abrir foto</label>
     </div>
   </header>
@@ -55,6 +55,12 @@
       </div>
     </aside>
   </main>
+
+  <dialog class="install-help" id="install-help">
+    <h2>Instalar EXIF Frame</h2>
+    <ol id="install-steps"></ol>
+    <form method="dialog"><button class="btn primary">Entendido</button></form>
+  </dialog>
 
   <script src="decoders.js"></script>
   <script src="logos.js"></script>
