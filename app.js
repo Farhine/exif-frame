@@ -13,7 +13,10 @@ const els = {
   date: document.getElementById('f-date'),
   author: document.getElementById('f-author'),
   logo: document.getElementById('f-logo'),
+  status: document.getElementById('status'),
 };
+
+els.file.accept = ACCEPT_ATTR;
 
 const LOGO_AUTO = 'auto';
 const LOGO_NONE = 'none';
@@ -80,14 +83,8 @@ function escapeRegExp(s) {
 
 // ---------- Imagen ----------
 
-function loadImage(file) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => resolve(downscale(img));
-    img.onerror = () => reject(new Error('Formato de imagen no soportado'));
-    img.src = url;
-  });
+async function loadImage(file) {
+  return downscale(await decodePhoto(file));
 }
 
 // Devuelve un canvas con naturalWidth/Height para que render.js lo trate igual que un <img>
@@ -103,8 +100,18 @@ function downscale(img) {
   return c;
 }
 
+function setBusy(message) {
+  els.status.textContent = message || '';
+  els.status.hidden = !message;
+}
+
 async function openFile(file) {
-  if (!file || !file.type.startsWith('image/')) return;
+  if (!file) return;
+  if (!fileKind(file)) {
+    alert(`"${file.name}" no es un formato de foto soportado.`);
+    return;
+  }
+  setBusy(fileKind(file) === 'native' ? '' : 'Procesando foto…');
   try {
     const [img, info] = await Promise.all([loadImage(file), readExif(file)]);
     state = { ...state, img, fileName: file.name.replace(/\.[^.]+$/, '') };
@@ -118,6 +125,9 @@ async function openFile(file) {
     redraw();
   } catch (err) {
     alert(`No se pudo abrir la imagen: ${err.message}`);
+  } finally {
+    setBusy('');
+    els.file.value = ''; // permite volver a elegir el mismo archivo
   }
 }
 

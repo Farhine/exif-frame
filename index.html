@@ -29,8 +29,10 @@
       <div class="drop" id="drop">
         <svg viewBox="0 0 24 24" width="48" height="48" aria-hidden="true"><path fill="currentColor" d="M4 5h3l2-2h6l2 2h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm8 3a5 5 0 1 0 0 10 5 5 0 0 0 0-10Zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z"/></svg>
         <p><strong>Toca para elegir una foto</strong><br>o arrástrala aquí</p>
+        <p class="formats">JPG · PNG · HEIC · WebP · AVIF · TIFF · RAW</p>
         <input type="file" id="file" accept="image/*">
       </div>
+      <div class="status" id="status" hidden></div>
       <canvas id="canvas" hidden></canvas>
     </section>
 
@@ -54,6 +56,7 @@
     </aside>
   </main>
 
+  <script src="decoders.js"></script>
   <script src="logos.js"></script>
   <script src="render.js"></script>
   <script src="app.js"></script>
