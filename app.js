@@ -209,6 +209,23 @@ els.logo.addEventListener('change', redraw);
 
 els.save.addEventListener('click', save);
 
+// Botón "Instalar" cuando el navegador lo permite (Chrome/Edge/Android)
+const installBtn = document.getElementById('install');
+let installPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  installBtn.hidden = false;
+});
+installBtn.addEventListener('click', async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  installBtn.hidden = true;
+});
+window.addEventListener('appinstalled', () => { installBtn.hidden = true; });
+
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }

@@ -29,6 +29,7 @@ body {
   border-bottom: 1px solid var(--border);
 }
 .topbar h1 { font-size: 18px; margin: 0; letter-spacing: .02em; }
+.topbar-actions { display: flex; gap: 8px; }
 
 .layout {
   flex: 1;
