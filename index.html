@@ -20,20 +20,21 @@
     <h1>EXIF Frame</h1>
     <div class="topbar-actions">
       <button class="btn ghost" id="install">Instalar</button>
-      <label class="btn ghost" for="file">Abrir foto</label>
+      <label class="btn ghost" for="file">Abrir fotos</label>
     </div>
   </header>
 
   <main class="layout">
     <section class="stage" id="stage">
-      <div class="drop" id="drop">
+      <input type="file" id="file" class="visually-hidden" accept="image/*" multiple>
+      <label class="drop" id="drop" for="file">
         <svg viewBox="0 0 24 24" width="48" height="48" aria-hidden="true"><path fill="currentColor" d="M4 5h3l2-2h6l2 2h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm8 3a5 5 0 1 0 0 10 5 5 0 0 0 0-10Zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z"/></svg>
-        <p><strong>Toca para elegir una foto</strong><br>o arrástrala aquí</p>
+        <p><strong>Toca para elegir fotos</strong><br>o arrástralas aquí (puedes elegir varias)</p>
         <p class="formats">JPG · PNG · HEIC · WebP · AVIF · TIFF · RAW</p>
-        <input type="file" id="file" accept="image/*">
-      </div>
+      </label>
       <div class="status" id="status" hidden></div>
       <canvas id="canvas" hidden></canvas>
+      <div class="strip" id="strip" hidden></div>
     </section>
 
     <aside class="panel" id="panel" hidden>
@@ -52,6 +53,7 @@
 
       <div class="actions">
         <button class="btn primary" id="save">Guardar / Compartir</button>
+        <button class="btn secondary" id="save-all" hidden>Guardar todas</button>
       </div>
     </aside>
   </main>
@@ -63,8 +65,11 @@
   </dialog>
 
   <script src="decoders.js"></script>
+  <script src="exif.js"></script>
+  <script src="export.js"></script>
   <script src="logos.js"></script>
   <script src="render.js"></script>
   <script src="app.js"></script>
+  <script src="install.js"></script>
 </body>
 </html>

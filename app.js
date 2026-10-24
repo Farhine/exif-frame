@@ -1,19 +1,20 @@
 const MAX_SIDE = 4000; // limita memoria en celulares
+const THUMB_SIDE = 160;
+const INFO_FIELDS = ['camera', 'lens', 'settings', 'date'];
 
 const els = {
   file: document.getElementById('file'),
   drop: document.getElementById('drop'),
   canvas: document.getElementById('canvas'),
   panel: document.getElementById('panel'),
+  strip: document.getElementById('strip'),
   templates: document.getElementById('templates'),
   save: document.getElementById('save'),
-  camera: document.getElementById('f-camera'),
-  lens: document.getElementById('f-lens'),
-  settings: document.getElementById('f-settings'),
-  date: document.getElementById('f-date'),
+  saveAll: document.getElementById('save-all'),
   author: document.getElementById('f-author'),
   logo: document.getElementById('f-logo'),
   status: document.getElementById('status'),
+  fields: Object.fromEntries(INFO_FIELDS.map((f) => [f, document.getElementById(`f-${f}`)])),
 };
 
 els.file.accept = ACCEPT_ATTR;
@@ -21,75 +22,23 @@ els.file.accept = ACCEPT_ATTR;
 const LOGO_AUTO = 'auto';
 const LOGO_NONE = 'none';
 
-let state = { img: null, template: 'classic', fileName: 'foto' };
-
-// ---------- EXIF ----------
-
-const BRAND_NAMES = {
-  'NIKON CORPORATION': 'Nikon',
-  'OLYMPUS IMAGING CORP.': 'Olympus',
-  'OM Digital Solutions': 'OM System',
-  'FUJIFILM': 'Fujifilm',
-  'SONY': 'Sony',
-  'Canon': 'Canon',
-  'Apple': 'Apple',
-};
-
-function formatCamera(make = '', model = '') {
-  const brand = BRAND_NAMES[make.trim()] || make.trim();
-  const cleanModel = model.trim().replace(new RegExp(`^${escapeRegExp(make.trim())}\\s*`, 'i'), '');
-  if (!brand) return cleanModel;
-  return cleanModel.toLowerCase().startsWith(brand.toLowerCase()) ? cleanModel : `${brand} ${cleanModel}`.trim();
-}
-
-function formatExposure(t) {
-  if (!t) return '';
-  return t >= 1 ? `${+t.toFixed(1)}s` : `1/${Math.round(1 / t)}s`;
-}
-
-function formatSettings(e) {
-  const focal = e.FocalLengthIn35mmFormat || e.FocalLength;
-  return [
-    focal && `${Math.round(focal)}mm`,
-    e.FNumber && `f/${+e.FNumber.toFixed(1)}`,
-    formatExposure(e.ExposureTime),
-    e.ISO && `ISO ${e.ISO}`,
-  ].filter(Boolean).join('  ');
-}
-
-function formatDate(d) {
-  if (!(d instanceof Date) || isNaN(d)) return '';
-  return d.toLocaleString('es', { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-}
-
-async function readExif(file) {
-  try {
-    const e = (await exifr.parse(file, { tiff: true, exif: true, gps: false, xmp: false })) || {};
-    return {
-      camera: formatCamera(e.Make, e.Model),
-      lens: (e.LensModel || '').trim(),
-      settings: formatSettings(e),
-      date: formatDate(e.DateTimeOriginal || e.CreateDate),
-    };
-  } catch (err) {
-    console.warn('No se pudo leer EXIF:', err);
-    return { camera: '', lens: '', settings: '', date: '' };
-  }
-}
-
-function escapeRegExp(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+/**
+ * photos: [{ id, file, info: {camera, lens, settings, date}, thumb }]
+ * Solo la foto seleccionada se mantiene decodificada (cached) para cuidar la memoria.
+ */
+let state = { photos: [], current: -1, template: 'classic' };
+let cached = { id: null, img: null };
+let nextId = 1;
 
 // ---------- Imagen ----------
 
 async function loadImage(file) {
-  return downscale(await decodePhoto(file));
+  return downscale(await decodePhoto(file), MAX_SIDE);
 }
 
 // Devuelve un canvas con naturalWidth/Height para que render.js lo trate igual que un <img>
-function downscale(img) {
-  const s = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+function downscale(img, maxSide) {
+  const s = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
   if (s === 1) return img;
   const c = document.createElement('canvas');
   c.width = Math.round(img.naturalWidth * s);
@@ -100,36 +49,99 @@ function downscale(img) {
   return c;
 }
 
+function makeThumb(img) {
+  const s = THUMB_SIDE / Math.max(img.naturalWidth, img.naturalHeight);
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.naturalWidth * s);
+  c.height = Math.round(img.naturalHeight * s);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.7);
+}
+
+async function imageFor(photo) {
+  if (cached.id === photo.id) return cached.img;
+  return loadImage(photo.file);
+}
+
 function setBusy(message) {
   els.status.textContent = message || '';
   els.status.hidden = !message;
 }
 
-async function openFile(file) {
-  if (!file) return;
-  if (!fileKind(file)) {
-    alert(`"${file.name}" no es un formato de foto soportado.`);
+// ---------- Fotos ----------
+
+const currentPhoto = () => state.photos[state.current];
+
+async function addFiles(fileList) {
+  const files = [...fileList];
+  const rejected = files.filter((f) => !fileKind(f));
+  const accepted = files.filter((f) => fileKind(f));
+  if (rejected.length) {
+    alert(`Estos archivos no son fotos soportadas:\n${rejected.map((f) => f.name).join('\n')}`);
+  }
+  if (!accepted.length) return;
+
+  const failed = [];
+  const firstNew = state.photos.length;
+  for (const [i, file] of accepted.entries()) {
+    setBusy(accepted.length > 1 ? `Cargando ${i + 1} de ${accepted.length}…` : 'Cargando foto…');
+    try {
+      const [img, info] = await Promise.all([loadImage(file), readExif(file)]);
+      const photo = { id: nextId++, file, info, thumb: makeThumb(img) };
+      state = { ...state, photos: [...state.photos, photo] };
+      if (i === 0) cached = { id: photo.id, img };
+    } catch (err) {
+      failed.push(`${file.name}: ${err.message}`);
+    }
+  }
+  setBusy('');
+  els.file.value = ''; // permite volver a elegir los mismos archivos
+
+  if (failed.length) alert(`No se pudieron abrir:\n${failed.join('\n')}`);
+  if (state.photos.length > firstNew) await selectPhoto(firstNew);
+}
+
+async function selectPhoto(index) {
+  const photo = state.photos[index];
+  if (!photo) return;
+  state = { ...state, current: index };
+  if (cached.id !== photo.id) {
+    setBusy(fileKind(photo.file) === 'native' ? '' : 'Procesando foto…');
+    try {
+      cached = { id: photo.id, img: await loadImage(photo.file) };
+    } catch (err) {
+      alert(`No se pudo abrir la imagen: ${err.message}`);
+    } finally {
+      setBusy('');
+    }
+  }
+  INFO_FIELDS.forEach((f) => { els.fields[f].value = photo.info[f]; });
+  render();
+}
+
+function removePhoto(index) {
+  const photos = state.photos.filter((_, i) => i !== index);
+  if (!photos.length) {
+    state = { ...state, photos, current: -1 };
+    cached = { id: null, img: null };
+    render();
     return;
   }
-  setBusy(fileKind(file) === 'native' ? '' : 'Procesando foto…');
-  try {
-    const [img, info] = await Promise.all([loadImage(file), readExif(file)]);
-    state = { ...state, img, fileName: file.name.replace(/\.[^.]+$/, '') };
-    els.camera.value = info.camera || 'Cámara desconocida';
-    els.lens.value = info.lens;
-    els.settings.value = info.settings;
-    els.date.value = info.date;
-    els.drop.hidden = true;
-    els.canvas.hidden = false;
-    els.panel.hidden = false;
-    redraw();
-  } catch (err) {
-    alert(`No se pudo abrir la imagen: ${err.message}`);
-  } finally {
-    setBusy('');
-    els.file.value = ''; // permite volver a elegir el mismo archivo
-  }
+  // Si se quita la actual queda seleccionada la siguiente (o la última)
+  const next = Math.min(index < state.current ? state.current - 1 : state.current, photos.length - 1);
+  state = { ...state, photos };
+  selectPhoto(Math.max(0, next));
 }
+
+function updateCurrentInfo(field, value) {
+  state = {
+    ...state,
+    photos: state.photos.map((p, i) => (i === state.current ? { ...p, info: { ...p.info, [field]: value } } : p)),
+  };
+  redraw();
+}
+
+// ---------- Dibujo ----------
 
 function selectedLogo(camera) {
   const value = els.logo.value;
@@ -137,42 +149,96 @@ function selectedLogo(camera) {
   return value === LOGO_AUTO ? detectBrand(camera) : value;
 }
 
-function currentInfo() {
-  const camera = els.camera.value.trim();
-  return {
-    logo: selectedLogo(camera),
-    camera,
-    lens: els.lens.value.trim(),
-    settings: els.settings.value.trim(),
-    date: els.date.value.trim(),
-    author: els.author.value.trim(),
-  };
+function frameInfo(photo) {
+  const info = Object.fromEntries(INFO_FIELDS.map((f) => [f, photo.info[f].trim()]));
+  return { ...info, logo: selectedLogo(info.camera), author: els.author.value.trim() };
 }
 
 function redraw() {
-  if (state.img) renderFrame(els.canvas, state.img, currentInfo(), state.template);
+  const photo = currentPhoto();
+  if (photo && cached.id === photo.id) renderFrame(els.canvas, cached.img, frameInfo(photo), state.template);
+}
+
+function renderStrip() {
+  els.strip.innerHTML = '';
+  state.photos.forEach((p, i) => {
+    const item = document.createElement('div');
+    item.className = `thumb${i === state.current ? ' active' : ''}`;
+
+    const select = document.createElement('button');
+    select.className = 'thumb-img';
+    select.dataset.select = i;
+    select.title = p.file.name;
+    const img = document.createElement('img');
+    img.src = p.thumb;
+    img.alt = '';
+    select.append(img);
+
+    const remove = document.createElement('button');
+    remove.className = 'thumb-remove';
+    remove.dataset.remove = i;
+    remove.setAttribute('aria-label', `Quitar ${p.file.name}`);
+    remove.textContent = '×';
+
+    item.append(select, remove);
+    els.strip.append(item);
+  });
+  const add = document.createElement('label');
+  add.className = 'thumb-add';
+  add.htmlFor = 'file';
+  add.textContent = '+';
+  add.title = 'Agregar fotos';
+  els.strip.append(add);
+}
+
+function render() {
+  const has = state.photos.length > 0;
+  els.drop.hidden = has;
+  els.canvas.hidden = !has;
+  els.panel.hidden = !has;
+  els.strip.hidden = !has;
+  els.saveAll.hidden = state.photos.length < 2;
+  els.saveAll.textContent = `Guardar todas (${state.photos.length})`;
+  els.save.textContent = state.photos.length > 1 ? 'Guardar esta' : 'Guardar / Compartir';
+  renderStrip();
+  redraw();
 }
 
 // ---------- Exportar ----------
 
-async function save() {
-  const blob = await new Promise((r) => els.canvas.toBlob(r, 'image/jpeg', 0.92));
-  if (!blob) return alert('No se pudo generar la imagen');
-  const file = new File([blob], `${state.fileName}-exif.jpg`, { type: 'image/jpeg' });
+async function saveCurrent() {
+  const photo = currentPhoto();
+  if (!photo) return;
+  try {
+    await deliverFiles([await canvasToFile(els.canvas, exportName(photo.file.name))]);
+  } catch (err) {
+    alert(err.message);
+  }
+}
 
-  if (navigator.canShare?.({ files: [file] })) {
+async function saveAll() {
+  const files = [];
+  const failed = [];
+  const out = document.createElement('canvas');
+  for (const [i, photo] of state.photos.entries()) {
+    setBusy(`Preparando ${i + 1} de ${state.photos.length}…`);
     try {
-      await navigator.share({ files: [file] });
-      return;
+      renderFrame(out, await imageFor(photo), frameInfo(photo), state.template);
+      files.push(await canvasToFile(out, exportName(photo.file.name)));
     } catch (err) {
-      if (err.name === 'AbortError') return;
+      failed.push(`${photo.file.name}: ${err.message}`);
     }
   }
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = file.name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  out.width = 0; // libera la memoria del canvas
+  setBusy(files.length > 1 ? 'Guardando…' : '');
+  try {
+    if (files.length) await deliverFiles(files);
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    setBusy('');
+  }
+  if (failed.length) alert(`No se pudieron exportar:\n${failed.join('\n')}`);
 }
 
 // ---------- Controles ----------
@@ -197,13 +263,20 @@ window.onLogoLoaded = redraw;
 
 // ---------- Eventos ----------
 
-els.file.addEventListener('change', (e) => openFile(e.target.files[0]));
+els.file.addEventListener('change', (e) => addFiles(e.target.files));
 
 ['dragover', 'dragenter'].forEach((ev) =>
   document.addEventListener(ev, (e) => { e.preventDefault(); els.drop.classList.add('over'); }));
 ['dragleave', 'drop'].forEach((ev) =>
   document.addEventListener(ev, (e) => { e.preventDefault(); els.drop.classList.remove('over'); }));
-document.addEventListener('drop', (e) => openFile(e.dataTransfer.files[0]));
+document.addEventListener('drop', (e) => addFiles(e.dataTransfer.files));
+
+els.strip.addEventListener('click', (e) => {
+  const remove = e.target.closest('[data-remove]');
+  if (remove) return removePhoto(Number(remove.dataset.remove));
+  const select = e.target.closest('[data-select]');
+  if (select) selectPhoto(Number(select.dataset.select));
+});
 
 els.templates.addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-t]');
@@ -213,72 +286,12 @@ els.templates.addEventListener('click', (e) => {
   redraw();
 });
 
-[els.camera, els.lens, els.settings, els.date, els.author].forEach((input) =>
-  input.addEventListener('input', redraw));
+INFO_FIELDS.forEach((f) => els.fields[f].addEventListener('input', (e) => updateCurrentInfo(f, e.target.value)));
+els.author.addEventListener('input', redraw);
 els.logo.addEventListener('change', redraw);
 
-els.save.addEventListener('click', save);
-
-// ---------- Instalar ----------
-// Chrome/Edge ofrecen un diálogo propio (beforeinstallprompt). En el resto
-// (iPhone, Firefox, Samsung Internet…) se muestran los pasos a mano.
-
-const installBtn = document.getElementById('install');
-const installHelp = document.getElementById('install-help');
-const installSteps = document.getElementById('install-steps');
-let installPrompt = null;
-
-const isStandalone = () =>
-  matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-
-function installInstructions() {
-  const ua = navigator.userAgent;
-  const isIOS = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
-  if (isIOS && /CriOS|FxiOS|EdgiOS/.test(ua)) {
-    return ['En iPhone solo se puede instalar desde <strong>Safari</strong>.', 'Abre esta misma página en Safari y sigue los pasos que aparecerán ahí.'];
-  }
-  if (isIOS) {
-    return ['Toca el botón <strong>Compartir</strong> (el cuadrado con la flecha ⬆️).', 'Baja y elige <strong>Agregar a pantalla de inicio</strong>.', 'Toca <strong>Agregar</strong>.'];
-  }
-  if (/SamsungBrowser/.test(ua)) {
-    return ['Toca el menú <strong>☰</strong> abajo.', 'Elige <strong>Agregar página a</strong> → <strong>Pantalla de inicio</strong>.'];
-  }
-  if (/Android/.test(ua)) {
-    return ['Toca el menú <strong>⋮</strong> arriba a la derecha.', 'Elige <strong>Instalar app</strong> o <strong>Agregar a pantalla principal</strong>.'];
-  }
-  if (/Firefox/.test(ua)) {
-    return ['Firefox en computadora no instala apps web.', 'Abre esta página en <strong>Chrome</strong> o <strong>Edge</strong> y toca Instalar.'];
-  }
-  if (/Macintosh/.test(ua) && /Safari/.test(ua) && !/Chrome/.test(ua)) {
-    return ['En el menú <strong>Archivo</strong> elige <strong>Agregar al Dock</strong>.'];
-  }
-  return ['Toca el ícono de instalar <strong>⊕</strong> a la derecha de la barra de direcciones,', 'o abre el menú <strong>⋮</strong> → <strong>Instalar EXIF Frame</strong>.', 'Si no aparece, puede que ya esté instalada: búscala en tus apps.'];
-}
-
-function showInstallHelp() {
-  installSteps.innerHTML = installInstructions().map((s) => `<li>${s}</li>`).join('');
-  installHelp.showModal();
-}
-
-installBtn.hidden = isStandalone();
-
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  installPrompt = e;
-});
-
-installBtn.addEventListener('click', async () => {
-  if (!installPrompt) {
-    showInstallHelp();
-    return;
-  }
-  installPrompt.prompt();
-  const { outcome } = await installPrompt.userChoice;
-  installPrompt = null;
-  if (outcome === 'accepted') installBtn.hidden = true;
-});
-
-window.addEventListener('appinstalled', () => { installBtn.hidden = true; });
+els.save.addEventListener('click', saveCurrent);
+els.saveAll.addEventListener('click', saveAll);
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
