@@ -29,7 +29,14 @@ body {
   border-bottom: 1px solid var(--border);
 }
 .topbar h1 { font-size: 18px; margin: 0; letter-spacing: .02em; }
-.topbar-actions { display: flex; gap: 8px; }
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
+.topbar h1, .topbar .btn { white-space: nowrap; }
+@media (max-width: 400px) {
+  .topbar { padding-left: 12px; padding-right: 12px; }
+  .topbar h1 { font-size: 16px; }
+  .topbar-actions { gap: 6px; }
+  .topbar-actions .btn { padding: 8px 10px; font-size: 14px; }
+}
 
 .install-help {
   width: min(420px, calc(100% - 32px));
@@ -214,6 +221,24 @@ body {
   font-size: 28px;
   cursor: pointer;
 }
+
+.icon-btn {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.icon-btn svg { width: 22px; height: 22px; fill: currentColor; }
+
+.visor-link { color: var(--muted); font-size: 14px; text-align: center; text-decoration: none; }
+.visor-link strong { color: var(--accent); font-weight: 500; }
 
 .btn {
   display: inline-block;

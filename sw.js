@@ -1,7 +1,7 @@
 // Cache simple para que la app funcione sin conexión una vez instalada.
-const CACHE = 'exif-frame-v8';
+const CACHE = 'exif-frame-v9';
 const ASSETS = [
-  './', 'index.html', 'styles.css', 'decoders.js', 'exif.js', 'export.js', 'logos.js', 'render.js', 'app.js', 'install.js', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'manifest.webmanifest',
+  './', 'index.html', 'styles.css', 'decoders.js', 'exif.js', 'export.js', 'logos.js', 'render.js', 'app.js', 'install.js', 'handoff.js', 'visor.html', 'visor.css', 'visor.js', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'manifest.webmanifest',
   'https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js',
 ];
 
@@ -25,6 +25,6 @@ self.addEventListener('fetch', (e) => {
         caches.open(CACHE).then((c) => c.put(e.request, copy));
       }
       return res;
-    }).catch(() => caches.match(e.request))
+    }).catch(() => caches.match(e.request, { ignoreSearch: true }))
   );
 });

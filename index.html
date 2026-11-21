@@ -19,6 +19,9 @@
   <header class="topbar">
     <h1>EXIF Frame</h1>
     <div class="topbar-actions">
+      <a class="icon-btn" href="visor.html" aria-label="Visor SD: ver las fotos de la tarjeta" title="Visor SD">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 2h-8L4 8v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm-6 6h-2V4h2zm3 0h-2V4h2zm3 0h-2V4h2z"/></svg>
+      </a>
       <button class="btn ghost" id="install">Instalar</button>
       <label class="btn ghost" for="file">Abrir fotos</label>
     </div>
@@ -32,6 +35,7 @@
         <p><strong>Toca para elegir fotos</strong><br>o arrástralas aquí (puedes elegir varias)</p>
         <p class="formats">JPG · PNG · HEIC · WebP · AVIF · TIFF · RAW</p>
       </label>
+      <a class="visor-link" id="visor-link" href="visor.html">¿Tus fotos están en una micro SD? <strong>Abre el Visor SD →</strong></a>
       <div class="status" id="status" hidden></div>
       <canvas id="canvas" hidden></canvas>
       <div class="strip" id="strip" hidden></div>
@@ -67,6 +71,7 @@
   <script src="decoders.js"></script>
   <script src="exif.js"></script>
   <script src="export.js"></script>
+  <script src="handoff.js"></script>
   <script src="logos.js"></script>
   <script src="render.js"></script>
   <script src="app.js"></script>

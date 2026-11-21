@@ -5,6 +5,7 @@ const UNKNOWN_CAMERA = 'Cámara desconocida';
 const BRAND_NAMES = {
   'NIKON CORPORATION': 'Nikon',
   'OLYMPUS IMAGING CORP.': 'Olympus',
+  'OLYMPUS CORPORATION': 'Olympus',
   'OM Digital Solutions': 'OM System',
   'FUJIFILM': 'Fujifilm',
   'SONY': 'Sony',

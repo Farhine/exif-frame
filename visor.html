@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Visor SD</title>
+  <meta name="description" content="Mira las fotos JPG y RAW de tu tarjeta SD desde el celular">
+  <meta name="theme-color" content="#111111">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="visor.css">
+  <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js"></script>
+</head>
+<body class="visor">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16z"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11A2.99 2.99 0 0 0 21 5a3 3 0 1 0-5.91.7L8.04 9.81A3 3 0 1 0 6 15c.79 0 1.5-.31 2.04-.81l7.12 4.16a2.92 2.92 0 1 0 2.84-2.27z"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2z"/></symbol>
+    <symbol id="i-frame" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M3 3h18v18H3zm2 2v11h14V5zm2 13v1.2h6V18z"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M8.59 16.59 10 18l6-6-6-6-1.41 1.41L13.17 12z"/></symbol>
+    <symbol id="i-sd" viewBox="0 0 24 24"><path d="M18 2h-8L4 8v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm-6 6h-2V4h2zm3 0h-2V4h2zm3 0h-2V4h2z"/></symbol>
+  </svg>
+
+  <header class="topbar">
+    <div class="topbar-title">
+      <a class="icon-btn" href="./" aria-label="Volver a EXIF Frame" title="EXIF Frame"><svg><use href="#i-back"/></svg></a>
+      <h1>Visor SD</h1>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn ghost" id="select-toggle" type="button" hidden>Seleccionar</button>
+      <div class="open-menu">
+        <button class="btn ghost" id="open-toggle" type="button" aria-haspopup="true" aria-expanded="false">Abrir</button>
+        <div class="menu" id="open-menu" hidden>
+          <label for="pick-folder" class="folder-only">Carpeta completa (DCIM)</label>
+          <label for="pick-files">Elegir fotos</label>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <input type="file" id="pick-files" class="visually-hidden" multiple>
+  <input type="file" id="pick-folder" class="visually-hidden" webkitdirectory multiple>
+
+  <main class="visor-main">
+    <section class="empty" id="empty">
+      <div class="empty-icon"><svg><use href="#i-sd"/></svg></div>
+      <h2>Mira las fotos de tu micro SD</h2>
+      <ol>
+        <li>Conecta la tarjeta al celular con un lector USB‑C (o en la ranura de tarjeta).</li>
+        <li class="folder-only">Toca <strong>Abrir carpeta</strong> y elige la carpeta <strong>DCIM</strong> de la tarjeta (o la tarjeta entera).</li>
+        <li class="files-only">Toca <strong>Elegir fotos</strong>, busca la tarjeta y selecciona las fotos (mantén presionada una y luego “Seleccionar todo”).</li>
+        <li>Los <strong>JPG y ORF</strong> del mismo disparo se juntan en una sola foto.</li>
+      </ol>
+      <div class="empty-actions">
+        <label class="btn primary folder-only" for="pick-folder">Abrir carpeta</label>
+        <label class="btn secondary" for="pick-files">Elegir fotos</label>
+      </div>
+      <p class="hint" id="platform-hint"></p>
+      <p class="hint">Nada se sube a internet: las fotos se leen directo desde la tarjeta.</p>
+    </section>
+
+    <div class="toolbar" id="toolbar" hidden>
+      <p class="summary" id="summary"></p>
+      <div class="chips" id="filters"></div>
+      <div class="tools">
+        <button class="chip" id="sort" type="button"></button>
+        <button class="icon-btn small" id="size" type="button" aria-label="Cambiar tamaño de miniaturas" title="Tamaño de miniaturas"><svg><use href="#i-grid"/></svg></button>
+      </div>
+    </div>
+
+    <div class="gallery" id="gallery"></div>
+  </main>
+
+  <div class="selbar" id="selbar" hidden>
+    <span class="selcount" id="selcount"></span>
+    <button class="v-btn" id="sel-share" type="button"><svg><use href="#i-share"/></svg>Compartir</button>
+    <button class="v-btn" id="sel-download" type="button"><svg><use href="#i-download"/></svg>Descargar</button>
+    <button class="v-btn" id="sel-frame" type="button"><svg><use href="#i-frame"/></svg>Enmarcar</button>
+  </div>
+
+  <div class="viewer" id="viewer" hidden role="dialog" aria-modal="true" aria-label="Foto a pantalla completa">
+    <div class="v-stage" id="v-stage"><div class="v-track" id="v-track"></div></div>
+    <header class="v-top">
+      <button class="v-icon" id="v-close" type="button" aria-label="Volver a la galería"><svg><use href="#i-back"/></svg></button>
+      <div class="v-title"><strong id="v-name"></strong><span id="v-pos"></span></div>
+      <span class="v-badge" id="v-badge"></span>
+    </header>
+    <button class="v-arrow prev" id="v-prev" type="button" aria-label="Foto anterior"><svg><use href="#i-prev"/></svg></button>
+    <button class="v-arrow next" id="v-next" type="button" aria-label="Foto siguiente"><svg><use href="#i-next"/></svg></button>
+    <nav class="v-bottom">
+      <button class="v-btn" id="v-info" type="button"><svg><use href="#i-info"/></svg>Datos</button>
+      <button class="v-btn" id="v-share" type="button"><svg><use href="#i-share"/></svg>Compartir</button>
+      <button class="v-btn" id="v-download" type="button"><svg><use href="#i-download"/></svg>Descargar</button>
+      <button class="v-btn" id="v-frame" type="button"><svg><use href="#i-frame"/></svg>Enmarcar</button>
+    </nav>
+    <section class="v-panel" id="v-panel" hidden>
+      <div class="v-panel-head">
+        <h2>Datos de la foto</h2>
+        <button class="v-icon" id="v-panel-close" type="button" aria-label="Cerrar datos"><svg><use href="#i-close"/></svg></button>
+      </div>
+      <dl id="v-details"></dl>
+    </section>
+  </div>
+
+  <div class="status" id="status" hidden></div>
+
+  <script src="decoders.js"></script>
+  <script src="exif.js"></script>
+  <script src="export.js"></script>
+  <script src="handoff.js"></script>
+  <script src="visor.js"></script>
+</body>
+</html>
