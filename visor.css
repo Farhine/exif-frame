@@ -102,6 +102,53 @@ body:not(.no-folder) .files-only { display: none; }
 .chip .n { margin-left: 6px; opacity: .6; }
 .chip.active { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 500; }
 
+/* ---------- Cargando la tarjeta ---------- */
+
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0,0,0,.6);
+}
+.loader-card {
+  width: min(380px, 100%);
+  padding: 22px 20px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  text-align: center;
+}
+.loader-card > strong { font-size: 17px; }
+.loader-bar {
+  position: relative;
+  height: 6px;
+  margin: 16px 0 8px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+.loader-bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  border-radius: inherit;
+  background: var(--accent);
+  animation: loading 1.3s ease-in-out infinite;
+}
+@keyframes loading {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(290%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loader-bar span { animation-duration: 4s; }
+}
+.loader-time { margin: 0; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 14px; }
+.loader-card .hint { margin: 14px 0; text-align: left; }
+.loader-card .btn { width: 100%; }
+
 /* ---------- Galería ---------- */
 
 .day-head {

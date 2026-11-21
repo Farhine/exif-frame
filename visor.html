@@ -111,6 +111,17 @@
     </section>
   </div>
 
+  <div class="loader" id="loader" hidden role="status" aria-live="polite">
+    <div class="loader-card">
+      <strong id="loader-title">Leyendo la tarjeta…</strong>
+      <div class="loader-bar"><span></span></div>
+      <p class="loader-time" id="loader-time">0:00</p>
+      <p class="hint">Con muchas fotos, Android puede tardar varios minutos en entregarlas.
+        Para que sea más rápido, abre solo una subcarpeta (por ejemplo <strong>DCIM/100OLYMP</strong>).</p>
+      <button class="btn ghost" id="loader-hide" type="button">Ocultar</button>
+    </div>
+  </div>
+
   <div class="status" id="status" hidden></div>
 
   <script src="decoders.js"></script>

@@ -63,6 +63,10 @@ const els = {
   panelClose: $('v-panel-close'),
   details: $('v-details'),
   status: $('status'),
+  loader: $('loader'),
+  loaderTitle: $('loader-title'),
+  loaderTime: $('loader-time'),
+  loaderHide: $('loader-hide'),
 };
 
 const ua = navigator.userAgent;
@@ -1002,8 +1006,46 @@ els.openToggle.addEventListener('click', (e) => {
 els.openMenu.addEventListener('click', closeMenu);
 document.addEventListener('click', (e) => { if (!e.target.closest('.open-menu')) closeMenu(); });
 
-els.pickFiles.addEventListener('change', (e) => addFiles(e.target.files));
-els.pickFolder.addEventListener('change', (e) => addFiles(e.target.files));
+// Mientras Android prepara los archivos la página no recibe nada (ni cuántos van),
+// así que se muestra una barra animada con el tiempo que lleva esperando.
+const loader = { timer: 0, start: 0 };
+
+function showLoader(title) {
+  els.loaderTitle.textContent = title;
+  if (!els.loader.hidden) return;
+  loader.start = Date.now();
+  els.loaderTime.textContent = '0:00';
+  els.loader.hidden = false;
+  loader.timer = setInterval(() => {
+    const s = Math.floor((Date.now() - loader.start) / 1000);
+    els.loaderTime.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }, 1000);
+}
+
+function hideLoader() {
+  clearInterval(loader.timer);
+  els.loader.hidden = true;
+}
+
+for (const input of [els.pickFiles, els.pickFolder]) {
+  // Tocar el botón (o su etiqueta) dispara "click" en el input: el selector se abre
+  input.addEventListener('click', () => showLoader('Leyendo la tarjeta…'));
+  input.addEventListener('cancel', hideLoader);
+  input.addEventListener('change', (e) => {
+    const files = [...e.target.files];
+    if (!files.length) { hideLoader(); return; }
+    showLoader(`Ordenando ${plural(files.length, 'archivo', 'archivos')}…`);
+    // Deja que se pinte el mensaje antes de armar la galería
+    setTimeout(() => {
+      try {
+        addFiles(files);
+      } finally {
+        hideLoader();
+      }
+    }, 50);
+  });
+}
+els.loaderHide.addEventListener('click', hideLoader);
 
 ['dragover', 'dragenter'].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault()));
 document.addEventListener('drop', (e) => { e.preventDefault(); addFiles(e.dataTransfer.files); });
