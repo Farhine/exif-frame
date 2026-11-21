@@ -165,7 +165,12 @@ function findEmbeddedJpegs(bytes) {
   return found.sort((a, b) => (b.end - b.start) - (a.end - a.start));
 }
 
-async function decodeRaw(file) {
+/**
+ * Vista previa JPEG que la cámara guarda dentro del RAW.
+ * @returns {Promise<{blob: Blob, img: HTMLImageElement, orientation: number}>}
+ *   orientation es el giro EXIF que todavía falta aplicarle a `img` (1 = ninguno).
+ */
+async function extractRawPreview(file) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const candidates = findEmbeddedJpegs(bytes);
   for (const { start, end } of candidates) {
@@ -179,9 +184,14 @@ async function decodeRaw(file) {
     if (Math.max(img.naturalWidth, img.naturalHeight) < MIN_RAW_PREVIEW_SIDE) break;
     // Si la vista previa trae su propia orientación el navegador ya la aplicó
     const own = await readOrientation(blob);
-    return own !== 1 ? img : applyOrientation(img, await readOrientation(file));
+    return { blob, img, orientation: own !== 1 ? 1 : await readOrientation(file) };
   }
   throw new Error('Este RAW no trae una vista previa JPEG de tamaño completo');
+}
+
+async function decodeRaw(file) {
+  const { img, orientation } = await extractRawPreview(file);
+  return applyOrientation(img, orientation);
 }
 
 // ---------- Entrada ----------

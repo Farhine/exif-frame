@@ -14,6 +14,7 @@ const els = {
   author: document.getElementById('f-author'),
   logo: document.getElementById('f-logo'),
   status: document.getElementById('status'),
+  visorLink: document.getElementById('visor-link'),
   fields: Object.fromEntries(INFO_FIELDS.map((f) => [f, document.getElementById(`f-${f}`)])),
 };
 
@@ -194,6 +195,7 @@ function renderStrip() {
 function render() {
   const has = state.photos.length > 0;
   els.drop.hidden = has;
+  els.visorLink.hidden = has;
   els.canvas.hidden = !has;
   els.panel.hidden = !has;
   els.strip.hidden = !has;
@@ -292,6 +294,14 @@ els.logo.addEventListener('change', redraw);
 
 els.save.addEventListener('click', saveCurrent);
 els.saveAll.addEventListener('click', saveAll);
+
+// Fotos enviadas desde el Visor SD (botón "Enmarcar")
+if (new URLSearchParams(location.search).has('desde')) {
+  history.replaceState(null, '', location.pathname);
+  takeHandoff()
+    .then((files) => { if (files.length) addFiles(files); })
+    .catch((err) => alert(`No se pudieron recibir las fotos: ${err.message}`));
+}
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
