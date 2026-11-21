@@ -4,7 +4,11 @@
 // (deslizar para cambiar, pellizcar o doble toque para zoom, bajar para cerrar).
 // Todo se procesa en el celular: nada se sube a internet.
 
-const THUMB_PX = 320;          // lado corto de las miniaturas generadas
+const THUMB_PX = 256;          // lado corto de las miniaturas generadas
+const THUMB_QUALITY = 0.75;
+const MIN_PREVIEW_SIDE = 200;  // vista previa incrustada mínima para usarla de miniatura
+const JPG_HEAD_BYTES = 1 << 20; // las vistas previas de los JPG van en el primer MB
+const RAW_HEAD_BYTES = 4 << 20;
 const THUMB_WORKERS = 2;       // miniaturas en paralelo (cada una decodifica una foto entera)
 const TILE_SIZES = [84, 112, 168];
 const KEEP_AROUND = 2;         // fotos a cada lado que el visor mantiene decodificadas
@@ -273,10 +277,6 @@ function makeTile(item, index) {
   img.alt = '';
   img.decoding = 'async';
   img.draggable = false;
-  if (item.thumb) {
-    img.src = item.thumb;
-    img.className = 'ready';
-  }
   tile.append(img);
 
   const badge = badgeFor(item);
@@ -291,7 +291,7 @@ function makeTile(item, index) {
   tile.append(check);
 
   if (item.broken) tile.classList.add('broken');
-  else if (!item.thumb) thumbs.watch(tile);
+  else thumbs.watch(tile);
   return tile;
 }
 
@@ -334,10 +334,79 @@ function renderGallery() {
 
 // ---------- Miniaturas ----------
 
+// Las miniaturas salen, si se puede, de la vista previa chica que la cámara guarda
+// dentro del archivo: decodificar una foto de 20 MP entera usa ~80 MB de memoria.
+
+/** La vista previa JPEG incrustada más chica que sirva de miniatura, o null. */
+async function embeddedPreview(file, limit) {
+  const bytes = new Uint8Array(await file.slice(0, limit).arrayBuffer());
+  // start > 0 descarta la foto principal de un JPG; de la más chica a la más grande
+  const found = findEmbeddedJpegs(bytes).filter((j) => j.start > 0).reverse();
+  for (const { start, end } of found) {
+    const blob = new Blob([bytes.subarray(start, end)], { type: 'image/jpeg' });
+    let bitmap;
+    try {
+      bitmap = await createImageBitmap(blob);
+    } catch {
+      continue;
+    }
+    if (Math.min(bitmap.width, bitmap.height) >= MIN_PREVIEW_SIDE) {
+      // Si la vista previa trae su propia orientación el navegador ya la aplicó
+      const own = await readOrientation(blob);
+      return { src: bitmap, orientation: own !== 1 ? 1 : await readOrientation(file) };
+    }
+    bitmap.close();
+  }
+  return null;
+}
+
+async function thumbSource(file) {
+  const kind = fileKind(file);
+  if (kind === 'native' || kind === 'raw') {
+    const preview = await embeddedPreview(file, kind === 'raw' ? RAW_HEAD_BYTES : JPG_HEAD_BYTES);
+    if (preview) return preview;
+  }
+  if (kind === 'native') {
+    try {
+      // Un ImageBitmap reducido se libera apenas se cierra (un <img> espera al recolector)
+      return { src: await createImageBitmap(file, { resizeWidth: THUMB_PX * 1.5, resizeQuality: 'medium' }), orientation: 1 };
+    } catch {
+      return { src: await blobToImage(file), orientation: 1 };
+    }
+  }
+  return { src: await decodePhoto(file), orientation: 1 };
+}
+
+/** Dibuja la miniatura (lado corto = THUMB_PX) ya girada según la orientación EXIF. */
+function drawThumb(src, orientation) {
+  const sw = src.naturalWidth || src.width;
+  const sh = src.naturalHeight || src.height;
+  const s = Math.min(1, THUMB_PX / Math.min(sw, sh));
+  const w = Math.max(1, Math.round(sw * s));
+  const h = Math.max(1, Math.round(sh * s));
+  const deg = { 3: 180, 6: 90, 8: 270 }[orientation] || 0;
+  const swap = deg === 90 || deg === 270;
+  const c = document.createElement('canvas');
+  c.width = swap ? h : w;
+  c.height = swap ? w : h;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.translate(c.width / 2, c.height / 2);
+  ctx.rotate((deg * Math.PI) / 180);
+  ctx.drawImage(src, -w / 2, -h / 2, w, h);
+  return c;
+}
+
 async function makeThumb(file) {
-  // JPG: el navegador lo abre directo. RAW: se usa la vista previa que trae adentro.
-  const src = fileKind(file) === 'native' ? await blobToImage(file) : await decodePhoto(file);
-  return URL.createObjectURL(await sourceToJpeg(src, THUMB_PX, 0.8));
+  const { src, orientation } = await thumbSource(file);
+  try {
+    const canvas = drawThumb(src, orientation);
+    const blob = await toBlob(canvas, THUMB_QUALITY);
+    canvas.width = 0; // libera la memoria del canvas
+    return URL.createObjectURL(blob);
+  } finally {
+    src.close?.();
+  }
 }
 
 function thumbFor(item) {
@@ -351,30 +420,50 @@ function thumbFor(item) {
   return item.thumbPromise;
 }
 
-// Solo se generan las miniaturas que están (o están por estar) en pantalla
+// Solo se generan y se muestran las miniaturas que están (o están por estar) en
+// pantalla. Las que quedan lejos se sueltan para no acumular miles de imágenes en memoria.
 const thumbs = (() => {
   const waiting = new Map(); // tile → item, en orden de llegada
+  const near = new Set();    // casillas cerca de la pantalla
   let running = 0;
+
+  function show(tile, url) {
+    const img = tile.querySelector('img');
+    if (img.getAttribute('src') === url) return;
+    img.onload = () => img.classList.add('ready');
+    img.src = url;
+  }
+
+  function hide(tile) {
+    const img = tile.querySelector('img');
+    if (!img.hasAttribute('src')) return;
+    img.removeAttribute('src');
+    img.classList.remove('ready');
+  }
+
   const io = new IntersectionObserver((entries) => {
     for (const e of entries) {
-      if (e.isIntersecting) waiting.set(e.target, tileItem.get(e.target));
-      else waiting.delete(e.target);
+      const item = tileItem.get(e.target);
+      if (!e.isIntersecting) {
+        near.delete(e.target);
+        waiting.delete(e.target);
+        hide(e.target);
+      } else {
+        near.add(e.target);
+        if (item.thumb) show(e.target, item.thumb);
+        else if (!item.broken) waiting.set(e.target, item);
+      }
     }
     pump();
-  }, { rootMargin: '800px 0px' });
+  }, { rootMargin: '1200px 0px' });
 
   function pump() {
     while (running < THUMB_WORKERS && waiting.size) {
       const [tile, item] = waiting.entries().next().value;
       waiting.delete(tile);
-      io.unobserve(tile);
       running += 1;
       thumbFor(item)
-        .then((url) => {
-          const img = tile.querySelector('img');
-          img.onload = () => img.classList.add('ready');
-          img.src = url;
-        })
+        .then((url) => { if (near.has(tile)) show(tile, url); })
         .catch(() => tile.classList.add('broken'))
         .finally(() => { running -= 1; pump(); });
     }
@@ -382,7 +471,7 @@ const thumbs = (() => {
 
   return {
     watch: (tile) => io.observe(tile),
-    reset: () => { io.disconnect(); waiting.clear(); },
+    reset: () => { io.disconnect(); waiting.clear(); near.clear(); },
   };
 })();
 
